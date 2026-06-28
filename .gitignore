@@ -1,0 +1,32 @@
+Python cache files
+
+pycache/
+*.py[cod]
+*$py.class
+
+Virtual Environments
+
+.venv/
+venv/
+env/
+
+MASSIVE DATASETS (Do not upload these to GitHub!)
+
+datasets/clean/*
+datasets/noise/*
+*.tar.gz
+*.zip
+
+Keep the dataset folders, but ignore their contents
+
+!datasets/clean/.gitkeep
+!datasets/noise/.gitkeep
+
+Output audio files (Ignore large generated wavs, but keep the folder)
+
+outputs/*
+!outputs/.gitkeep
+
+Mac OS junk
+
+.DS_Store

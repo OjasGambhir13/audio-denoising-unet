@@ -9,18 +9,14 @@ def calculate_snr(clean_signal, tested_signal):
     Calculates the Signal-to-Noise Ratio (SNR) in Decibels (dB).
     Higher is better.
     """
-    # Find the difference between the perfect signal and the tested signal
     noise = tested_signal - clean_signal
     
-    # Calculate the power of the signal and the noise
     signal_power = torch.sum(clean_signal ** 2)
     noise_power = torch.sum(noise ** 2)
     
-    # Avoid division by zero
     if noise_power == 0:
         return float('inf')
         
-    # Standard SNR formula: 10 * log10(Signal Power / Noise Power)
     snr = 10 * torch.log10(signal_power / noise_power)
     return snr.item()
 
@@ -29,20 +25,16 @@ def calculate_si_sdr(clean_signal, estimated_signal):
     Calculates Scale-Invariant Signal-to-Distortion Ratio (SI-SDR).
     This is the industry standard for speech separation. Higher is better.
     """
-    # Ensure zero mean
     clean_signal = clean_signal - torch.mean(clean_signal)
     estimated_signal = estimated_signal - torch.mean(estimated_signal)
     
-    # Calculate the scale factor
     dot_product = torch.sum(estimated_signal * clean_signal)
     clean_energy = torch.sum(clean_signal ** 2) + 1e-8
     alpha = dot_product / clean_energy
     
-    # Target and error calculation
     target = alpha * clean_signal
     error = estimated_signal - target
     
-    # SI-SDR formula
     si_sdr = 10 * torch.log10((torch.sum(target ** 2) + 1e-8) / (torch.sum(error ** 2) + 1e-8))
     return si_sdr.item()
 
@@ -67,19 +59,15 @@ def generate_synthetic_test_pair(duration=3, sr=16000):
     """Generates a perfect clean signal and a heavily noisy version for testing."""
     t = torch.linspace(0, duration, sr * duration)
     
-    # 1. Create Clean "Voice" (Harmonics at 300Hz, 700Hz, 1200Hz)
     clean = (torch.sin(2 * torch.pi * 300 * t) + 
              0.5 * torch.sin(2 * torch.pi * 700 * t) + 
              0.2 * torch.sin(2 * torch.pi * 1200 * t))
     
-    # Add envelope to mimic speaking
     envelope = torch.abs(torch.sin(2 * torch.pi * 1.5 * t))
     clean = clean * envelope
     
-    # 2. Create Static Noise
     noise = torch.randn_like(clean)
     
-    # 3. Mix them (Low SNR to make it hard for the AI)
     clean = clean / torch.max(torch.abs(clean))
     noise = noise / torch.max(torch.abs(noise))
     noisy = clean + (noise * 0.8) # 80% noise!
@@ -90,7 +78,6 @@ def run_evaluation():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"\n🚀 Booting up Evaluation Pipeline on {device}...")
     
-    # Load the AI
     model = AudioUNet().to(device)
     try:
         model.load_state_dict(torch.load('models/best_unet.pth', map_location=device, weights_only=True))
@@ -100,11 +87,9 @@ def run_evaluation():
         
     model.eval()
 
-    # Generate the Ground Truth and Noisy audio
     clean_audio, noisy_audio = generate_synthetic_test_pair()
     noisy_audio = noisy_audio.to(device)
     
-    # Calculate baseline metrics (How bad is the noisy audio?)
     baseline_snr = calculate_snr(clean_audio.squeeze(), noisy_audio.cpu().squeeze())
     baseline_sisdr = calculate_si_sdr(clean_audio.squeeze(), noisy_audio.cpu().squeeze())
 
@@ -137,16 +122,13 @@ def run_evaluation():
     complex_stft = torch.polar(denoised_mag_padded, phase)
     cleaned_waveform = torch.istft(complex_stft, n_fft=n_fft, hop_length=hop_length, window=window, length=noisy_audio.shape[1]).unsqueeze(0)
 
-    # Normalize outputs for fair comparison
     cleaned_waveform = cleaned_waveform / torch.max(torch.abs(cleaned_waveform))
     cleaned_audio = cleaned_waveform.cpu().squeeze()
     clean_audio = clean_audio.squeeze()
 
-    # Calculate final metrics (How good is the AI audio?)
     final_snr = calculate_snr(clean_audio, cleaned_audio)
     final_sisdr = calculate_si_sdr(clean_audio, cleaned_audio)
     
-    # Calculate the new metrics
     baseline_stoi = calculate_stoi(clean_audio, noisy_audio.cpu().squeeze())
     final_stoi = calculate_stoi(clean_audio, cleaned_audio)
     
